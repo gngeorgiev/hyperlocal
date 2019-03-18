@@ -95,6 +95,36 @@ impl<S> Server<S> {
                 })
         }))
     }
+
+    /// Starts the server and returns the future, leaving it up to the consumer
+    /// to choose a runtime to drive it
+    pub fn run_future(self) -> impl Future<Item = (), Error = io::Error>
+    where
+        S: NewService<ReqBody = Body> + Send + 'static,
+        S::Future: Send + 'static,
+        S::Service: Send,
+        S::InitError: fmt::Display,
+        <S::Service as Service>::ResBody: Payload,
+        <S::Service as Service>::Future: Send + 'static,
+    {
+        self.serve.for_each(|connecting| {
+            connecting
+                .map_err(|e| {
+                    io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("failed to serve connection: {}", e),
+                    )
+                })
+                .and_then(|connection| {
+                    connection.map_err(|e| {
+                        io::Error::new(
+                            io::ErrorKind::Other,
+                            format!("failed to serve connection: {}", e),
+                        )
+                    })
+                })
+        })
+    }
 }
 
 /// A stream mapping incoming connections to new services.
